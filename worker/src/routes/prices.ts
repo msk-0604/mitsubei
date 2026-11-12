@@ -63,6 +63,76 @@ async function assertCategory(ctx: AppContext, categoryId: string | null) {
   if (!row) throw new HttpError(400, "validation_error", "入力内容を確認してください", { categoryId: "カテゴリが見つかりません" });
 }
 
+/**
+ * カテゴリを決める。categoryName（新しい名前）が指定されたら、同じ名前があればそれを使い、なければ作る。
+ */
+async function resolveCategory(ctx: AppContext, input: { categoryId: string | null; categoryName: string | null }): Promise<string | null> {
+  const { organizationId } = ctx.get("auth");
+  if (!input.categoryName) {
+    await assertCategory(ctx, input.categoryId);
+    return input.categoryId;
+  }
+  const db = ctx.get("db");
+  const find = () =>
+    db
+      .select({ id: pc.id })
+      .from(pc)
+      .where(and(eq(pc.organizationId, organizationId), eq(pc.name, input.categoryName!)))
+      .get();
+  const found = await find();
+  if (found) return found.id;
+  const max = await db
+    .select({ n: sql<number>`coalesce(max(${pc.sortOrder}), -1)` })
+    .from(pc)
+    .where(eq(pc.organizationId, organizationId))
+    .get();
+  const id = newId();
+  try {
+    await db.batch([
+      db.insert(pc).values({ id, organizationId, name: input.categoryName, sortOrder: (max?.n ?? -1) + 1 }),
+      auditStmt(db, ctx.get("auth"), "price_category.create", "price_category", id),
+    ]);
+    return id;
+  } catch (e) {
+    // 同時に同じ名前で作られた場合は、そちらを使う
+    if (isUniqueViolation(e)) return (await find())?.id ?? null;
+    throw e;
+  }
+}
+
+/**
+ * 商品コードの自動採番（P-0001 形式）。企業ごとの連番を1文で進めるため同時登録でも重複しない。
+ * 手入力ですでに使われているコードは飛ばす。
+ */
+const CODE_COUNTER = "price-item-code";
+export function formatItemCode(n: number): string {
+  return `P-${String(n).padStart(4, "0")}`;
+}
+async function allocateCodes(env: Env, organizationId: string, count: number): Promise<string[]> {
+  const out: string[] = [];
+  for (let round = 0; round < 6 && out.length < count; round++) {
+    const need = count - out.length;
+    const row = await env.DB.prepare(
+      `INSERT INTO estimate_number_counters (organization_id, period, last_value) VALUES (?1, ?2, ?3)
+       ON CONFLICT (organization_id, period) DO UPDATE SET last_value = last_value + ?3
+       RETURNING last_value`,
+    )
+      .bind(organizationId, CODE_COUNTER, need)
+      .first<{ last_value: number }>();
+    const end = row!.last_value;
+    const candidates = Array.from({ length: need }, (_, i) => formatItemCode(end - need + 1 + i));
+    const { results } = await env.DB.prepare(
+      `SELECT code FROM price_items WHERE organization_id = ?1 AND code IN (SELECT value FROM json_each(?2))`,
+    )
+      .bind(organizationId, JSON.stringify(candidates))
+      .all<{ code: string }>();
+    const used = new Set(results.map((r) => r.code));
+    out.push(...candidates.filter((c) => !used.has(c)));
+  }
+  if (out.length < count) throw new HttpError(409, "code_exhausted", "商品コードを採番できませんでした。コードを手入力してください");
+  return out;
+}
+
 function duplicateCode() {
   return new HttpError(409, "duplicate_code", "この商品コードはすでに使われています", { code: "この商品コードはすでに使われています" });
 }
@@ -258,8 +328,10 @@ priceItems.get("/:id", async (ctx) => ctx.json(toItem(await getItem(ctx, ctx.req
 priceItems.post("/", async (ctx) => {
   const auth = await requirePriceEditor(ctx);
   const db = ctx.get("db");
-  const { unitPrice, ...input } = await parseBody(ctx, priceItemInput);
-  await assertCategory(ctx, input.categoryId);
+  const { unitPrice, categoryName, ...input } = await parseBody(ctx, priceItemInput);
+  input.categoryId = await resolveCategory(ctx, { categoryId: input.categoryId, categoryName });
+  // 商品コードが空欄なら自動採番
+  input.code ??= (await allocateCodes(ctx.env, auth.organizationId, 1))[0]!;
   const id = newId();
   try {
     await db.batch([
@@ -284,8 +356,10 @@ priceItems.patch("/:id", async (ctx) => {
   const auth = await requirePriceEditor(ctx);
   const db = ctx.get("db");
   const existing = await getItem(ctx, ctx.req.param("id"));
-  const { unitPrice, ...input } = await parseBody(ctx, priceItemInput);
-  await assertCategory(ctx, input.categoryId);
+  const { unitPrice, categoryName, ...input } = await parseBody(ctx, priceItemInput);
+  input.categoryId = await resolveCategory(ctx, { categoryId: input.categoryId, categoryName });
+  // 空欄にした場合は今のコードを残す（コードがない商品なら自動採番）
+  input.code ??= existing.code ?? (await allocateCodes(ctx.env, auth.organizationId, 1))[0]!;
   try {
     // 見積明細には追加時点の単価を保存しているため、ここで単価を変えても過去の見積書は変わらない
     await db.batch([
@@ -418,6 +492,10 @@ priceItems.post("/import", async (ctx) => {
       .all<{ code: string }>();
     for (const r of results) existingCodes.add(r.code);
   }
+
+  // コードが空欄の行には自動採番したコードを付ける（既存のコードとは重ならない）
+  const autoCodes = await allocateCodes(ctx.env, auth.organizationId, valid.filter((r) => !r.code).length);
+  for (const r of valid) if (!r.code) r.code = autoCodes.shift()!;
 
   let created = 0;
   let updated = 0;

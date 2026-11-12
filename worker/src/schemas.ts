@@ -101,6 +101,8 @@ export const priceItemInput = z.object({
   code: optText(50, "商品コード"),
   name: reqText(200, "商品名・工事項目名"),
   categoryId: optId,
+  /** 新しいカテゴリ名（categoryId の代わりに指定すると、なければ作成して設定する） */
+  categoryName: optText(50, "カテゴリ名"),
   spec: optText(200, "規格・仕様"),
   unit: optText(20, "単位"),
   unitPrice: unitPriceField,

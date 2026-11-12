@@ -500,6 +500,44 @@ describe("価格表", () => {
     expect(byCat.json.items.every((i: any) => i.categoryName === "継手")).toBe(true);
   });
 
+  it("商品コードを空欄にすると P-0001 形式で自動採番し、手入力済みのコードは飛ばす", async () => {
+    // B 社で確認（A 社は他のテストで商品が増えるため）
+    const manual = await call(B, "POST", "/api/price-items", { code: "P-0002", name: "手入力のコード", unitPrice: "1" });
+    expect(manual.status).toBe(201);
+    const a1 = await call(B, "POST", "/api/price-items", { name: "自動1", unitPrice: "1" });
+    const a2 = await call(B, "POST", "/api/price-items", { name: "自動2", unitPrice: "1" });
+    expect(a1.json.code).toBe("P-0001");
+    expect(a2.json.code).toBe("P-0003");
+    // 編集でコードを空欄にしても、今のコードが残る
+    const edited = await call(B, "PATCH", `/api/price-items/${a1.json.id}`, { name: "自動1（変更）", unitPrice: "2", code: "" });
+    expect(edited.json.code).toBe("P-0001");
+    // 同時に登録しても重複しない
+    const many = await Promise.all(Array.from({ length: 8 }, (_, i) => call(B, "POST", "/api/price-items", { name: `同時${i}`, unitPrice: "1" })));
+    expect(many.every((r) => r.status === 201)).toBe(true);
+    expect(new Set(many.map((r) => r.json.code)).size).toBe(8);
+    // CSV のコードなし行にも付く（既存の商品は上書きしない）
+    const imp = await call(B, "POST", "/api/price-items/import", { onDuplicate: "overwrite", rows: [{ name: "CSVコードなし", unitPrice: "5" }] });
+    expect(imp.json).toMatchObject({ created: 1, updated: 0 });
+    const csvItem = (await call(B, "GET", "/api/price-items?q=" + encodeURIComponent("CSVコードなし"))).json.items[0];
+    expect(csvItem.code).toMatch(/^P-\d{4}$/);
+    expect((await call(B, "GET", `/api/price-items/${manual.json.id}`)).json.name).toBe("手入力のコード");
+  });
+
+  it("新しいカテゴリ名を指定すると、その場でカテゴリを作る（同じ名前なら既存を使う）", async () => {
+    const r1 = await call(B, "POST", "/api/price-items", { name: "カテゴリ新規1", unitPrice: "1", categoryName: "B社の新カテゴリ" });
+    expect(r1.status).toBe(201);
+    expect(r1.json.categoryName).toBe("B社の新カテゴリ");
+    const r2 = await call(B, "POST", "/api/price-items", { name: "カテゴリ新規2", unitPrice: "1", categoryName: "B社の新カテゴリ" });
+    expect(r2.json.categoryId).toBe(r1.json.categoryId);
+    const cats = (await call(B, "GET", "/api/price-categories")).json.items.filter((c: any) => c.name === "B社の新カテゴリ");
+    expect(cats).toHaveLength(1);
+    // 他社のカテゴリ一覧には出ない
+    const aCats = (await call(A, "GET", "/api/price-categories")).json.items;
+    expect(aCats.some((c: any) => c.name === "B社の新カテゴリ")).toBe(false);
+    // 一般社員（権限なし）は作れない
+    expect((await call(staff, "POST", "/api/price-items", { name: "x", unitPrice: "1", categoryName: "勝手なカテゴリ" })).status).toBe(403);
+  });
+
   it("商品コードは企業内で重複できない（別会社とは重複してよい）", async () => {
     expect((await call(A, "POST", "/api/price-items", { code: "P-VP20", name: "dup", unitPrice: "1" })).status).toBe(409);
     expect((await call(B, "POST", "/api/price-items", { code: "P-VP13", name: "B社の VP13", unitPrice: "1" })).status).toBe(201);

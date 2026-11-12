@@ -10,10 +10,14 @@ import { Alert, Badge, Button, Card, EmptyState, Field, Modal, PageTitle, Pagina
 import { ApiError, api, errorMessage, useApi } from "@/lib/api";
 import { formatYmd, formatNumberString } from "@/lib/format";
 
+const NEW_CATEGORY = "__new__";
+
 type ItemForm = {
   code: string;
   name: string;
   categoryId: string;
+  /** 「＋ 新しいカテゴリ」を選んだときの名前 */
+  newCategory: string;
   spec: string;
   unit: string;
   unitPrice: string;
@@ -22,7 +26,7 @@ type ItemForm = {
   isActive: boolean;
 };
 
-const emptyForm: ItemForm = { code: "", name: "", categoryId: "", spec: "", unit: "", unitPrice: "", taxCategory: "standard", notes: "", isActive: true };
+const emptyForm: ItemForm = { code: "", name: "", categoryId: "", newCategory: "", spec: "", unit: "", unitPrice: "", taxCategory: "standard", notes: "", isActive: true };
 
 function ItemModal({
   open,
@@ -44,6 +48,7 @@ function ItemModal({
             code: item.code ?? "",
             name: item.name,
             categoryId: item.categoryId ?? "",
+            newCategory: "",
             spec: item.spec ?? "",
             unit: item.unit ?? "",
             unitPrice: item.unitPrice,
@@ -62,12 +67,17 @@ function ItemModal({
     const local: Record<string, string> = {};
     if (!f.name.trim()) local.name = "商品名・工事項目名を入力してください";
     if (parseDecimal(f.unitPrice || "", PRICE_SCALE) === null) local.unitPrice = "単価は数値で入力してください（小数2桁まで）";
+    if (f.categoryId === NEW_CATEGORY && !f.newCategory.trim()) local.categoryName = "新しいカテゴリの名前を入力してください";
     if (Object.keys(local).length) return setErrors(local);
     setBusy(true);
     try {
       await api(item ? `/price-items/${item.id}` : "/price-items", {
         method: item ? "PATCH" : "POST",
-        body: { ...f, categoryId: f.categoryId || null },
+        body: {
+          ...f,
+          categoryId: f.categoryId && f.categoryId !== NEW_CATEGORY ? f.categoryId : null,
+          categoryName: f.categoryId === NEW_CATEGORY ? f.newCategory : null,
+        },
         label: "価格表の保存",
       });
       toast("success", item ? "更新しました" : "登録しました");
@@ -103,18 +113,39 @@ function ItemModal({
         <Field label="商品名・工事項目名" htmlFor="pi-name" required error={errors.name} className="sm:col-span-2">
           <TextInput id="pi-name" value={f.name} onChange={(e) => set("name", e.target.value)} error={errors.name} />
         </Field>
-        <Field label="商品コード" htmlFor="pi-code" error={errors.code} hint="企業内で重複不可。CSV 取込時の照合に使います">
-          <TextInput id="pi-code" value={f.code} onChange={(e) => set("code", e.target.value)} error={errors.code} />
+        <Field
+          label="商品コード"
+          htmlFor="pi-code"
+          error={errors.code}
+          hint={item ? "企業内で重複不可。CSV 取込時の照合に使います" : "空欄なら自動で付けます（P-0001 の形式）"}
+        >
+          <TextInput id="pi-code" value={f.code} onChange={(e) => set("code", e.target.value)} error={errors.code} placeholder={item ? "" : "自動"} />
         </Field>
-        <Field label="カテゴリ" htmlFor="pi-cat" error={errors.categoryId}>
-          <Select id="pi-cat" value={f.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
+        <Field label="カテゴリ" htmlFor="pi-cat" error={errors.categoryId ?? errors.categoryName}>
+          <Select
+            id="pi-cat"
+            value={f.categoryId}
+            onChange={(e) => set("categoryId", e.target.value)}
+          >
             <option value="">（なし）</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
+            <option value={NEW_CATEGORY}>＋ 新しいカテゴリを作る…</option>
           </Select>
+          {f.categoryId === NEW_CATEGORY && (
+            <TextInput
+              value={f.newCategory}
+              onChange={(e) => set("newCategory", e.target.value)}
+              placeholder="新しいカテゴリ名（例：配管材料）"
+              aria-label="新しいカテゴリ名"
+              className="mt-2"
+              autoFocus
+              error={errors.categoryName}
+            />
+          )}
         </Field>
         <Field label="規格・仕様" htmlFor="pi-spec" error={errors.spec} className="sm:col-span-2">
           <TextInput id="pi-spec" value={f.spec} onChange={(e) => set("spec", e.target.value)} />
