@@ -200,6 +200,11 @@ export const settingsInput = z.object({
   defaultNotes: optText(3000, "備考の初期値"),
   defaultValidDays: z.number().int().min(1, { error: "有効期限は1日以上にしてください" }).max(365),
   memberCanEditPrices: z.boolean(),
+  /** 承認欄の見出し（最大4つ、各6文字まで。空なら表示しない） */
+  stampBoxes: z
+    .array(z.string().trim().min(1).max(6, { error: "承認欄の見出しは6文字以内にしてください" }))
+    .max(4, { error: "承認欄は4つまでです" })
+    .default([]),
 });
 
 /* ───── 社員 ───── */

@@ -20,7 +20,7 @@ const ALLOWED: Array<{ methods: string[]; pattern: RegExp }> = [
   { methods: ["GET", "PUT", "DELETE"], pattern: new RegExp(`^estimates/${ID}$`) },
   { methods: ["POST"], pattern: new RegExp(`^estimates/${ID}/(issue|status|duplicate|revise)$`) },
   { methods: ["GET", "PUT"], pattern: /^settings$/ },
-  { methods: ["POST", "DELETE"], pattern: /^settings\/logo$/ },
+  { methods: ["POST", "DELETE"], pattern: /^settings\/(logo|seal)$/ },
   { methods: ["GET"], pattern: new RegExp(`^logos/${ID}$`) },
   { methods: ["PATCH"], pattern: new RegExp(`^members/${ID}$`) },
   { methods: ["POST"], pattern: new RegExp(`^members/${ID}/password$`) },

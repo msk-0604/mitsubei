@@ -8,7 +8,7 @@ import { schema, type DB } from "../lib/db";
 import { HttpError, isUniqueViolation, newId, notFound, nowIso } from "../lib/http";
 import { parseBody } from "../lib/request";
 import { idSchema, memberCreateInput, memberPasswordInput, memberUpdateInput, settingsInput } from "../schemas";
-import { loadSettings } from "./estimates";
+import { loadSettings, parseStampBoxes } from "./estimates";
 
 const s = schema.organizationSettings;
 const m = schema.organizationMemberships;
@@ -23,6 +23,8 @@ function toSettings(r: typeof s.$inferSelect): OrganizationSettings {
     bankInfo: r.bankInfo,
     registrationNumber: r.registrationNumber,
     logoId: r.logoId,
+    sealId: r.sealId,
+    stampBoxes: parseStampBoxes(r.stampBoxes),
     numberPrefix: r.numberPrefix,
     numberDigits: r.numberDigits,
     numberReset: r.numberReset,
@@ -67,7 +69,7 @@ settings.put("/", async (ctx) => {
   const [rows] = await db.batch([
     db
       .update(s)
-      .set({ ...input, updatedAt: nowIso(), updatedBy: auth.userId })
+      .set({ ...input, stampBoxes: JSON.stringify(input.stampBoxes), updatedAt: nowIso(), updatedBy: auth.userId })
       .where(eq(s.organizationId, auth.organizationId))
       .returning(),
     db.update(schema.organizations).set({ name: input.companyName, updatedAt: nowIso() }).where(eq(schema.organizations.id, auth.organizationId)),
@@ -101,46 +103,56 @@ export function inspectImage(b: Uint8Array): { mime: "image/png" | "image/jpeg";
   return null;
 }
 
-settings.post("/logo", async (ctx) => {
-  const auth = requireAdmin(ctx);
-  const db = ctx.get("db");
-  const len = Number(ctx.req.header("content-length") ?? "0");
-  if (len > MAX_LOGO_BYTES) throw new HttpError(413, "logo_too_large", "ロゴ画像は300KB以下にしてください");
-  const bytes = new Uint8Array(await ctx.req.arrayBuffer());
-  if (bytes.length === 0) throw new HttpError(400, "logo_empty", "画像を選択してください");
-  if (bytes.length > MAX_LOGO_BYTES) throw new HttpError(413, "logo_too_large", "ロゴ画像は300KB以下にしてください");
-  const info = inspectImage(bytes);
-  if (!info) throw new HttpError(400, "logo_invalid", "PNG または JPEG の画像を選択してください");
-  if (info.width < 1 || info.height < 1 || info.width > 4000 || info.height > 4000) {
-    throw new HttpError(400, "logo_invalid", "画像の大きさは縦横4000ピクセル以内にしてください");
-  }
-  const id = newId();
-  // 古いロゴは削除しない（発行済みの見積書が発行時点のロゴを参照するため）
-  await db.batch([
-    db.insert(schema.organizationLogos).values({
-      id,
-      organizationId: auth.organizationId,
-      mime: info.mime,
-      data: bytes as unknown as typeof schema.organizationLogos.$inferInsert.data,
-      size: bytes.length,
-      width: info.width,
-      height: info.height,
-    }),
-    db.update(s).set({ logoId: id, updatedAt: nowIso(), updatedBy: auth.userId }).where(eq(s.organizationId, auth.organizationId)),
-    auditStmt(db, auth, "settings.logo", "organization", auth.organizationId, { size: bytes.length }),
-  ]);
-  return ctx.json({ logoId: id });
-});
+/**
+ * ロゴ・社印（角印）の画像の登録と取り外し。
+ * 古い画像は削除しない（発行済みの見積書が、発行時点の画像を参照するため）。
+ */
+const IMAGE_KINDS = {
+  logo: { column: "logoId", label: "ロゴ画像" },
+  seal: { column: "sealId", label: "印鑑の画像" },
+} as const;
 
-settings.delete("/logo", async (ctx) => {
-  const auth = requireAdmin(ctx);
-  const db = ctx.get("db");
-  await db.batch([
-    db.update(s).set({ logoId: null, updatedAt: nowIso(), updatedBy: auth.userId }).where(eq(s.organizationId, auth.organizationId)),
-    auditStmt(db, auth, "settings.logo_remove", "organization", auth.organizationId),
-  ]);
-  return ctx.json({ ok: true });
-});
+for (const [kind, { column, label }] of Object.entries(IMAGE_KINDS)) {
+  settings.post(`/${kind}`, async (ctx) => {
+    const auth = requireAdmin(ctx);
+    const db = ctx.get("db");
+    const len = Number(ctx.req.header("content-length") ?? "0");
+    if (len > MAX_LOGO_BYTES) throw new HttpError(413, "image_too_large", `${label}は300KB以下にしてください`);
+    const bytes = new Uint8Array(await ctx.req.arrayBuffer());
+    if (bytes.length === 0) throw new HttpError(400, "image_empty", "画像を選択してください");
+    if (bytes.length > MAX_LOGO_BYTES) throw new HttpError(413, "image_too_large", `${label}は300KB以下にしてください`);
+    const info = inspectImage(bytes);
+    if (!info) throw new HttpError(400, "image_invalid", "PNG または JPEG の画像を選択してください");
+    if (info.width < 1 || info.height < 1 || info.width > 4000 || info.height > 4000) {
+      throw new HttpError(400, "image_invalid", "画像の大きさは縦横4000ピクセル以内にしてください");
+    }
+    const id = newId();
+    await db.batch([
+      db.insert(schema.organizationLogos).values({
+        id,
+        organizationId: auth.organizationId,
+        mime: info.mime,
+        data: bytes as unknown as typeof schema.organizationLogos.$inferInsert.data,
+        size: bytes.length,
+        width: info.width,
+        height: info.height,
+      }),
+      db.update(s).set({ [column]: id, updatedAt: nowIso(), updatedBy: auth.userId }).where(eq(s.organizationId, auth.organizationId)),
+      auditStmt(db, auth, `settings.${kind}`, "organization", auth.organizationId, { size: bytes.length }),
+    ]);
+    return ctx.json({ [column]: id });
+  });
+
+  settings.delete(`/${kind}`, async (ctx) => {
+    const auth = requireAdmin(ctx);
+    const db = ctx.get("db");
+    await db.batch([
+      db.update(s).set({ [column]: null, updatedAt: nowIso(), updatedBy: auth.userId }).where(eq(s.organizationId, auth.organizationId)),
+      auditStmt(db, auth, `settings.${kind}_remove`, "organization", auth.organizationId),
+    ]);
+    return ctx.json({ ok: true });
+  });
+}
 
 /** ロゴ画像（自社のものだけ）。ID ごとに内容は変わらないため長めにキャッシュ（private：共有キャッシュには載せない） */
 export const logos = new Hono<AppEnv>();

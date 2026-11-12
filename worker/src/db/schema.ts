@@ -161,6 +161,10 @@ export const organizationSettings = sqliteTable(
     /** 適格請求書発行事業者の登録番号（T + 13桁） */
     registrationNumber: text("registration_number"),
     logoId: text("logo_id"),
+    /** 社印（角印）の画像。organization_logos に保存し、ここで参照する（企業の一致はアプリ側で確認） */
+    sealId: text("seal_id"),
+    /** 承認欄の見出し（JSON の文字列配列。空なら承認欄を表示しない）例：["承認","担当"] */
+    stampBoxes: text("stamp_boxes").notNull().default("[]"),
     numberPrefix: text("number_prefix").notNull().default("{YYYY}-"),
     numberDigits: integer("number_digits").notNull().default(4),
     numberReset: text("number_reset", { enum: ["yearly", "monthly", "never"] }).notNull().default("yearly"),

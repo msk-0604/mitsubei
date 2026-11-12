@@ -71,6 +71,11 @@ const s = StyleSheet.create({
   totalValue: { flex: 1, textAlign: "right", fontSize: 18, fontWeight: 700, lineHeight: 1.5, paddingLeft: 10, paddingRight: 4, paddingVertical: 2 },
   totalNote: { fontSize: 8.5, lineHeight: 1.5, paddingRight: 8, paddingTop: 11 },
   logo: { maxWidth: 140, maxHeight: 48, objectFit: "contain", marginBottom: 6 },
+  issuerBlock: { position: "relative", alignItems: "flex-end", paddingRight: 4 },
+  seal: { position: "absolute", top: -10, right: -6, width: 58, height: 58, objectFit: "contain", opacity: 0.9 },
+  stampRow: { flexDirection: "row", marginTop: 8 },
+  stampBox: { width: 46, height: 52, borderWidth: 0.8, borderColor: "#64748b" },
+  stampLabel: { fontSize: 7.5, textAlign: "center", borderBottomWidth: 0.8, borderBottomColor: "#64748b", paddingVertical: 1.5, color: "#334155" },
   company: { fontSize: 11, fontWeight: 700, marginBottom: 2, textAlign: "right" },
   issuerText: { fontSize: 8.5, textAlign: "right", color: "#334155" },
   table: { marginTop: 14, borderTopWidth: 1, borderTopColor: "#334155" },
@@ -105,7 +110,8 @@ function TableHead() {
 
 const TAX_SHORT = { standard: "10%", reduced: "8%※", exempt: "非課税" } as const;
 
-function EstimateDoc({ e, issuer, logo }: { e: Estimate; issuer: IssuerSnapshot; logo: string | null }) {
+function EstimateDoc({ e, issuer, logo, seal }: { e: Estimate; issuer: IssuerSnapshot; logo: string | null; seal: string | null }) {
+  const stampBoxes = issuer.stampBoxes ?? [];
   const hasReduced = e.items.some((it) => it.taxCategory === "reduced");
   const addr = [issuer.postalCode ? `〒${issuer.postalCode}` : null, issuer.address].filter(Boolean).join(" ");
   return (
@@ -179,11 +185,25 @@ function EstimateDoc({ e, issuer, logo }: { e: Estimate; issuer: IssuerSnapshot;
           <View style={s.right}>
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
             {logo && <Image src={logo} style={s.logo} />}
-            <Text style={s.company}>{jp(issuer.companyName)}</Text>
-            {addr && <Text style={s.issuerText}>{jp(addr)}</Text>}
-            {issuer.phone && <Text style={s.issuerText}>TEL {issuer.phone}</Text>}
-            {issuer.email && <Text style={s.issuerText}>{issuer.email}</Text>}
-            {issuer.registrationNumber && <Text style={[s.issuerText, { marginTop: 2 }]}>登録番号 {issuer.registrationNumber}</Text>}
+            <View style={s.issuerBlock}>
+              <Text style={s.company}>{jp(issuer.companyName)}</Text>
+              {addr && <Text style={s.issuerText}>{jp(addr)}</Text>}
+              {issuer.phone && <Text style={s.issuerText}>TEL {issuer.phone}</Text>}
+              {issuer.email && <Text style={s.issuerText}>{issuer.email}</Text>}
+              {issuer.registrationNumber && <Text style={[s.issuerText, { marginTop: 2 }]}>登録番号 {issuer.registrationNumber}</Text>}
+              {/* 社印（角印）：会社名の右端に重ねて押した形にする */}
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
+              {seal && <Image src={seal} style={s.seal} />}
+            </View>
+            {stampBoxes.length > 0 && (
+              <View style={s.stampRow}>
+                {stampBoxes.map((label, i) => (
+                  <View key={i} style={[s.stampBox, i === 0 ? {} : { borderLeftWidth: 0 }]}>
+                    <Text style={s.stampLabel}>{label}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         </View>
 
@@ -260,7 +280,12 @@ function EstimateDoc({ e, issuer, logo }: { e: Estimate; issuer: IssuerSnapshot;
   );
 }
 
-export async function renderEstimatePdf(input: { estimate: Estimate; issuer: IssuerSnapshot; logo: string | null }): Promise<Buffer> {
+export async function renderEstimatePdf(input: {
+  estimate: Estimate;
+  issuer: IssuerSnapshot;
+  logo: string | null;
+  seal: string | null;
+}): Promise<Buffer> {
   ensureFonts();
-  return renderToBuffer(<EstimateDoc e={input.estimate} issuer={input.issuer} logo={input.logo} />);
+  return renderToBuffer(<EstimateDoc e={input.estimate} issuer={input.issuer} logo={input.logo} seal={input.seal} />);
 }

@@ -88,7 +88,18 @@ export function issuerFromSettings(s: SettingsRow): IssuerSnapshot {
     registrationNumber: s.registrationNumber,
     bankInfo: s.bankInfo,
     logoId: s.logoId,
+    sealId: s.sealId,
+    stampBoxes: parseStampBoxes(s.stampBoxes),
   };
+}
+
+export function parseStampBoxes(v: string | null | undefined): string[] {
+  try {
+    const a = JSON.parse(v ?? "[]") as unknown;
+    return Array.isArray(a) ? a.filter((x): x is string => typeof x === "string").slice(0, 4) : [];
+  } catch {
+    return [];
+  }
 }
 
 type CalcInput = z.output<typeof estimateInput>;
@@ -607,17 +618,19 @@ estimates.get("/:id/pdf-data", async (ctx) => {
   const est = await loadEstimate(ctx, ctx.req.param("id"));
   const settings = await loadSettings(ctx);
   const issuer = est.issuer ?? issuerFromSettings(settings);
-  let logo: string | null = null;
-  if (issuer.logoId) {
+  // 画像は自社のものだけを読み込む（ID が他社のものなら null）
+  const image = async (id: string | null | undefined): Promise<string | null> => {
+    if (!id) return null;
     const l = await ctx
       .get("db")
       .select({ mime: schema.organizationLogos.mime, data: schema.organizationLogos.data })
       .from(schema.organizationLogos)
-      .where(and(eq(schema.organizationLogos.id, issuer.logoId), eq(schema.organizationLogos.organizationId, auth.organizationId)))
+      .where(and(eq(schema.organizationLogos.id, id), eq(schema.organizationLogos.organizationId, auth.organizationId)))
       .get();
-    if (l) logo = `data:${l.mime};base64,${bytesToBase64(new Uint8Array(l.data as unknown as ArrayBuffer))}`;
-  }
-  return ctx.json({ estimate: est, issuer, logo });
+    return l ? `data:${l.mime};base64,${bytesToBase64(new Uint8Array(l.data as unknown as ArrayBuffer))}` : null;
+  };
+  const [logo, seal] = await Promise.all([image(issuer.logoId), image(issuer.sealId)]);
+  return ctx.json({ estimate: est, issuer, logo, seal });
 });
 
 /* ───────────── ホーム（集計） ───────────── */

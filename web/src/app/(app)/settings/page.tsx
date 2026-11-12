@@ -12,7 +12,18 @@ import { ApiError, api, errorMessage, useApi } from "@/lib/api";
 
 const MAX_LOGO = 300 * 1024;
 
-function LogoSection({ logoId, onChanged, disabled }: { logoId: string | null; onChanged: () => void; disabled: boolean }) {
+function ImageSection({
+  kind,
+  imageId,
+  onChanged,
+  disabled,
+}: {
+  kind: "logo" | "seal";
+  imageId: string | null;
+  onChanged: () => void;
+  disabled: boolean;
+}) {
+  const label = kind === "logo" ? "ロゴ" : "印鑑";
   const toast = useToast();
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
@@ -20,11 +31,11 @@ function LogoSection({ logoId, onChanged, disabled }: { logoId: string | null; o
   async function upload(file: File | undefined) {
     if (!file) return;
     if (!["image/png", "image/jpeg"].includes(file.type)) return toast("error", "PNG または JPEG の画像を選んでください");
-    if (file.size > MAX_LOGO) return toast("error", "ロゴ画像は300KB以下にしてください");
+    if (file.size > MAX_LOGO) return toast("error", `${label}の画像は300KB以下にしてください`);
     setBusy(true);
     try {
-      await api("/settings/logo", { method: "POST", raw: file, contentType: file.type, label: "ロゴのアップロード" });
-      toast("success", "ロゴを登録しました");
+      await api(`/settings/${kind}`, { method: "POST", raw: file, contentType: file.type, label: `${label}のアップロード` });
+      toast("success", `${label}を登録しました`);
       onChanged();
     } catch (e) {
       toast("error", errorMessage(e));
@@ -33,9 +44,17 @@ function LogoSection({ logoId, onChanged, disabled }: { logoId: string | null; o
     }
   }
   async function remove() {
-    if (!(await confirm({ title: "ロゴを外しますか？", message: "これから作成・発行する見積書にロゴが表示されなくなります。発行済みの見積書は変わりません。", confirmLabel: "外す", danger: true }))) return;
+    if (
+      !(await confirm({
+        title: `${label}を外しますか？`,
+        message: `これから作成・発行する見積書に${label}が表示されなくなります。発行済みの見積書は変わりません。`,
+        confirmLabel: "外す",
+        danger: true,
+      }))
+    )
+      return;
     try {
-      await api("/settings/logo", { method: "DELETE" });
+      await api(`/settings/${kind}`, { method: "DELETE" });
       onChanged();
     } catch (e) {
       toast("error", errorMessage(e));
@@ -44,24 +63,30 @@ function LogoSection({ logoId, onChanged, disabled }: { logoId: string | null; o
 
   return (
     <div className="flex flex-wrap items-center gap-4">
-      <div className="flex h-20 w-48 items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {logoId ? <img src={`/api/logos/${logoId}`} alt="会社ロゴ" className="max-h-16 max-w-44 object-contain" /> : <span className="text-xs text-slate-400">ロゴ未登録</span>}
+      <div className={`flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 ${kind === "logo" ? "h-20 w-48" : "size-20"}`}>
+        {imageId ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/logos/${imageId}`} alt={label} className={kind === "logo" ? "max-h-16 max-w-44 object-contain" : "size-16 object-contain"} />
+        ) : (
+          <span className="text-xs text-slate-400">{label}未登録</span>
+        )}
       </div>
       {!disabled && (
         <div className="flex flex-col gap-2">
           <label className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 ${busy ? "opacity-60" : ""}`}>
             <ImageUp className="size-4" aria-hidden />
-            {busy ? "アップロード中…" : "画像を選択"}
+            {busy ? "アップロード中…" : imageId ? "画像を変更" : "画像を選択"}
             <input type="file" accept="image/png,image/jpeg" className="sr-only" disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
           </label>
-          {logoId && (
+          {imageId && (
             <Button variant="ghost" size="sm" className="text-red-600" onClick={remove}>
               <Trash2 className="size-4" aria-hidden />
-              ロゴを外す
+              {label}を外す
             </Button>
           )}
-          <p className="text-xs text-slate-500">PNG / JPEG、300KB以下</p>
+          <p className="text-xs text-slate-500">
+            {kind === "seal" ? "背景が透明な PNG がおすすめ（300KB以下）" : "PNG / JPEG、300KB以下"}
+          </p>
         </div>
       )}
     </div>
@@ -76,11 +101,13 @@ export default function SettingsPage() {
   const [f, setF] = useState<OrganizationSettings | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  // 取得した設定（保存後・ロゴ変更後を含む）をフォームに反映する
+  const [stampText, setStampText] = useState("");
+  // 取得した設定（保存後・ロゴや印鑑の変更後を含む）をフォームに反映する
   const [loaded, setLoaded] = useState<OrganizationSettings | undefined>(undefined);
   if (data && data !== loaded) {
     setLoaded(data);
-    setF((cur) => (cur && loaded ? { ...cur, logoId: data.logoId, updatedAt: data.updatedAt } : data));
+    if (!loaded) setStampText(data.stampBoxes.join("、"));
+    setF((cur) => (cur && loaded ? { ...cur, logoId: data.logoId, sealId: data.sealId, updatedAt: data.updatedAt } : data));
   }
 
   if (error) return <Alert>{error.message}</Alert>;
@@ -158,8 +185,39 @@ export default function SettingsPage() {
             </Field>
             <div className="sm:col-span-2">
               <p className="mb-1.5 text-sm font-medium text-slate-700">会社ロゴ</p>
-              <LogoSection logoId={f.logoId} disabled={!isAdmin} onChanged={() => void mutate()} />
+              <ImageSection kind="logo" imageId={f.logoId} disabled={!isAdmin} onChanged={() => void mutate()} />
             </div>
+            <div className="sm:col-span-2">
+              <p className="mb-1.5 text-sm font-medium text-slate-700">社印（角印）</p>
+              <ImageSection kind="seal" imageId={f.sealId} disabled={!isAdmin} onChanged={() => void mutate()} />
+              <p className="mt-1.5 text-xs text-slate-500">
+                登録すると、見積書（PDF）の会社名の右端に重ねて表示されます。印鑑を紙に押してスキャン・撮影し、印影だけを切り抜いた画像を使ってください。
+              </p>
+            </div>
+            <Field
+              label="承認欄"
+              htmlFor="s-stamps"
+              className="sm:col-span-2"
+              error={errors.stampBoxes}
+              hint="見出しを読点（、）またはカンマで区切って入力（最大4つ）。例：承認、担当。空欄なら表示しません。印刷して手で押す場合に使います"
+            >
+              <TextInput
+                id="s-stamps"
+                value={stampText}
+                onChange={(e) => {
+                  setStampText(e.target.value);
+                  set(
+                    "stampBoxes",
+                    e.target.value
+                      .split(/[、,，\s]+/)
+                      .map((x) => x.trim())
+                      .filter(Boolean),
+                  );
+                }}
+                disabled={!isAdmin}
+                placeholder="承認、担当"
+              />
+            </Field>
           </div>
         </Card>
 

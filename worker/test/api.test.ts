@@ -227,6 +227,52 @@ describe("企業間のデータ分離", () => {
   });
 });
 
+describe("社印（角印）と承認欄", () => {
+  const png = () =>
+    Uint8Array.from(
+      atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="),
+      (c) => c.charCodeAt(0),
+    );
+  const upload = (s: Session) =>
+    fetch(BASE + "/api/settings/seal", {
+      method: "POST",
+      headers: { "x-mitubei-internal-secret": SECRET, origin: ORIGIN, cookie: s.cookie, "content-type": "image/png" },
+      body: png(),
+    });
+
+  it("登録した印鑑と承認欄が PDF データに入り、発行後は発行時点のまま残る", async () => {
+    // 印鑑なしで発行した見積書
+    const before = await call(A, "POST", "/api/estimates", { issueDate: "2026-11-12", recipientName: "x", subject: "印鑑なし", items: [item("a", "1", "1")] });
+    await call(A, "POST", `/api/estimates/${before.json.id}/issue`, { version: before.json.version });
+
+    const up = await upload(A);
+    expect(up.status).toBe(200);
+    const { sealId } = (await up.json()) as { sealId: string };
+    const settings = (await call(A, "GET", "/api/settings")).json;
+    expect(settings.sealId).toBe(sealId);
+    expect((await call(A, "PUT", "/api/settings", { ...settings, stampBoxes: ["承認", "担当"] })).status).toBe(200);
+
+    const draft = await call(A, "POST", "/api/estimates", { issueDate: "2026-11-12", items: [] });
+    const d = await call(A, "GET", `/api/estimates/${draft.json.id}/pdf-data`);
+    expect(d.json.seal).toMatch(/^data:image\/png;base64,/);
+    expect(d.json.issuer.stampBoxes).toEqual(["承認", "担当"]);
+
+    // 印鑑を登録する前に発行した見積書には、印鑑が入らない
+    const old = await call(A, "GET", `/api/estimates/${before.json.id}/pdf-data`);
+    expect(old.json.seal).toBeNull();
+
+    // 他社からは見えない・他社の設定には影響しない
+    expect((await call(B, "GET", `/api/logos/${sealId}`)).status).toBe(404);
+    expect((await call(B, "GET", "/api/settings")).json.sealId).toBeNull();
+    // 一般社員は登録できない
+    expect((await upload(staff)).status).toBe(403);
+    // 承認欄の見出しの検証
+    expect((await call(A, "PUT", "/api/settings", { ...settings, stampBoxes: ["1", "2", "3", "4", "5"] })).status).toBe(400);
+    expect((await call(A, "PUT", "/api/settings", { ...settings, stampBoxes: ["とても長い見出しです"] })).status).toBe(400);
+    await call(A, "PUT", "/api/settings", { ...settings, stampBoxes: [] });
+  });
+});
+
 describe("権限（管理者・一般社員）", () => {
   it("一般社員は価格表を編集できない（設定で許可すると編集できる）", async () => {
     expect((await call(staff, "POST", "/api/price-items", { name: "x", unitPrice: "1" })).status).toBe(403);

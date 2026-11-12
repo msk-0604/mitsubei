@@ -83,6 +83,10 @@ export type IssuerSnapshot = {
   registrationNumber: string | null;
   bankInfo: string | null;
   logoId: string | null;
+  /** 社印（角印）。この項目がない古い発行済み見積書は「印なし」 */
+  sealId?: string | null;
+  /** 承認欄の見出し */
+  stampBoxes?: string[];
 };
 
 export type EstimateSummary = {
@@ -137,6 +141,8 @@ export type OrganizationSettings = {
   bankInfo: string | null;
   registrationNumber: string | null;
   logoId: string | null;
+  sealId: string | null;
+  stampBoxes: string[];
   numberPrefix: string;
   numberDigits: number;
   numberReset: NumberReset;

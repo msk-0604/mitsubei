@@ -28,9 +28,9 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/estimate
     logApi("GET", `/api/estimates/${id}/pdf`, upstream.status, Math.round(performance.now() - started));
     return new NextResponse(upstream.body, { status: upstream.status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
   }
-  const data = (await upstream.json()) as { estimate: Estimate; issuer: IssuerSnapshot; logo: string | null };
+  const data = (await upstream.json()) as { estimate: Estimate; issuer: IssuerSnapshot; logo: string | null; seal?: string | null };
   const fetched = performance.now();
-  const pdf = await renderEstimatePdf(data);
+  const pdf = await renderEstimatePdf({ ...data, seal: data.seal ?? null });
   const ms = Math.round(performance.now() - started);
   logApi("GET", `/api/estimates/${id}/pdf`, 200, ms);
 
