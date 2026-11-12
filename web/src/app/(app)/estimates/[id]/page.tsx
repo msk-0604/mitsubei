@@ -173,7 +173,7 @@ export default function EstimateDetailPage() {
             title="PDF"
             actions={
               <>
-                <a href={`${pdfUrl}&download=1`} className={buttonClass("primary", "sm")}>
+                <a href={`${pdfUrl}&download=1`} download={`MITUBEI_見積書_${e.estimateNumber}.pdf`} className={buttonClass("primary", "sm")}>
                   <Download className="size-4" aria-hidden />
                   ダウンロード
                 </a>

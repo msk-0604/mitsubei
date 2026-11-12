@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "cf-typegen": "wrangler types",
-    "deploy": "wrangler d1 migrations apply mitubei --remote && wrangler deploy"
+    "deploy": "wrangler d1 migrations apply mitubei --remote && wrangler deploy",
+    "test:unit": "vitest run --project unit",
+    "test:api": "vitest run --project api"
   },
   "dependencies": {
     "better-auth": "^1.7.21",

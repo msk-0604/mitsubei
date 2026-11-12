@@ -18,15 +18,21 @@ function ensureFonts() {
       { src: path.join(dir, "NotoSansJP-Bold.ttf"), fontWeight: 700 },
     ],
   });
-  // 日本語は1文字ごとに改行できるようにし、英数字の単語は途中で切らない
+  // 日本語は1文字ごとに改行できるようにする。各文字の後ろに空の区切りを入れると、改行時にハイフンが付かない。
+  // 英数字の連続（型番・数字など）は途中で切らない。
   Font.registerHyphenationCallback((word) => {
-    const parts = word.match(/[ -~ -ɏ]+|[\s\S]/gu);
-    return parts ?? [word];
+    const tokens = word.replace(/\u200b/g, "").match(/[!-~]+|[\s\S]/gu) ?? [word];
+    return tokens.flatMap((t) => [t, ""]);
   });
   fontsReady = true;
 }
 
 /* ───────────── 書式 ───────────── */
+
+/** null を空文字にする（PDF のテキスト用） */
+function jp(text: string | null | undefined): string {
+  return text ?? "";
+}
 
 const yen = (n: number) => `¥${formatYen(n)}`;
 const num = (s: string) => {
@@ -60,9 +66,10 @@ const s = StyleSheet.create({
   kv: { flexDirection: "row", marginTop: 3 },
   kvKey: { width: 52, color: "#475569" },
   kvVal: { flex: 1 },
-  totalBox: { flexDirection: "row", alignItems: "center", borderWidth: 1.2, borderColor: BLUE, marginTop: 10, marginBottom: 4 },
-  totalLabel: { backgroundColor: BLUE, color: "#fff", fontWeight: 700, fontSize: 11, paddingVertical: 6, paddingHorizontal: 10 },
-  totalValue: { flex: 1, textAlign: "right", fontSize: 18, fontWeight: 700, paddingHorizontal: 10 },
+  totalBox: { flexDirection: "row", alignItems: "stretch", borderWidth: 1.2, borderColor: BLUE, marginTop: 10, marginBottom: 4 },
+  totalLabel: { backgroundColor: BLUE, color: "#fff", fontWeight: 700, fontSize: 11, lineHeight: 1.5, paddingHorizontal: 10, paddingTop: 7 },
+  totalValue: { flex: 1, textAlign: "right", fontSize: 18, fontWeight: 700, lineHeight: 1.5, paddingLeft: 10, paddingRight: 4, paddingVertical: 2 },
+  totalNote: { fontSize: 8.5, lineHeight: 1.5, paddingRight: 8, paddingTop: 11 },
   logo: { maxWidth: 140, maxHeight: 48, objectFit: "contain", marginBottom: 6 },
   company: { fontSize: 11, fontWeight: 700, marginBottom: 2, textAlign: "right" },
   issuerText: { fontSize: 8.5, textAlign: "right", color: "#334155" },
@@ -78,7 +85,7 @@ const s = StyleSheet.create({
   sumTotal: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, borderTopWidth: 1, borderTopColor: "#334155", marginTop: 2, fontWeight: 700, fontSize: 11 },
   box: { borderWidth: 0.8, borderColor: LINE, padding: 8, marginTop: 12 },
   boxTitle: { fontWeight: 700, marginBottom: 3, fontSize: 9 },
-  footer: { position: "absolute", bottom: 20, left: 36, right: 36, flexDirection: "row", justifyContent: "space-between", fontSize: 7.5, color: "#64748b" },
+  footer: { position: "absolute", top: 812, left: 36, right: 36, flexDirection: "row", justifyContent: "space-between", fontSize: 7.5, color: "#64748b" },
   contHeader: { position: "absolute", top: 30, left: 36, right: 36, flexDirection: "row", justifyContent: "space-between", fontSize: 8, color: "#64748b" },
 });
 
@@ -104,6 +111,13 @@ function EstimateDoc({ e, issuer, logo }: { e: Estimate; issuer: IssuerSnapshot;
   return (
     <Document title={`見積書 ${e.estimateNumber}`} author={issuer.companyName} creator="MITUBEI" producer="MITUBEI" language="ja">
       <Page size="A4" style={s.page}>
+        {/* ページ下部（全ページ） */}
+        <View fixed style={s.footer}>
+          <Text>
+            No. {e.estimateNumber}　{issuer.companyName}
+          </Text>
+          <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        </View>
         {/* 2ページ目以降の見出し */}
         <View
           fixed
@@ -129,30 +143,30 @@ function EstimateDoc({ e, issuer, logo }: { e: Estimate; issuer: IssuerSnapshot;
         <View style={s.top}>
           <View style={s.left}>
             <Text style={s.recipient}>
-              {e.recipientName || "　"}　{e.recipientHonorific}
+              {jp(e.recipientName) || "　"}　{e.recipientHonorific}
             </Text>
-            {e.recipientContact && <Text style={s.small}>{e.recipientContact}</Text>}
-            {e.recipientAddress && <Text style={s.small}>{e.recipientAddress}</Text>}
+            {e.recipientContact && <Text style={s.small}>{jp(e.recipientContact)}</Text>}
+            {e.recipientAddress && <Text style={s.small}>{jp(e.recipientAddress)}</Text>}
             <Text style={{ marginTop: 8 }}>下記のとおりお見積り申し上げます。</Text>
             <View style={s.totalBox}>
               <Text style={s.totalLabel}>御見積金額</Text>
               <Text style={s.totalValue}>{yen(e.total)}</Text>
-              <Text style={{ paddingRight: 8, fontSize: 8.5 }}>（税込）</Text>
+              <Text style={s.totalNote}>（税込）</Text>
             </View>
             <View style={s.kv}>
               <Text style={s.kvKey}>件名</Text>
-              <Text style={s.kvVal}>{e.subject}</Text>
+              <Text style={s.kvVal}>{jp(e.subject)}</Text>
             </View>
             {e.projectName && (
               <View style={s.kv}>
                 <Text style={s.kvKey}>工事名</Text>
-                <Text style={s.kvVal}>{e.projectName}</Text>
+                <Text style={s.kvVal}>{jp(e.projectName)}</Text>
               </View>
             )}
             {e.projectLocation && (
               <View style={s.kv}>
                 <Text style={s.kvKey}>工事場所</Text>
-                <Text style={s.kvVal}>{e.projectLocation}</Text>
+                <Text style={s.kvVal}>{jp(e.projectLocation)}</Text>
               </View>
             )}
             {e.validUntil && (
@@ -165,8 +179,8 @@ function EstimateDoc({ e, issuer, logo }: { e: Estimate; issuer: IssuerSnapshot;
           <View style={s.right}>
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
             {logo && <Image src={logo} style={s.logo} />}
-            <Text style={s.company}>{issuer.companyName}</Text>
-            {addr && <Text style={s.issuerText}>{addr}</Text>}
+            <Text style={s.company}>{jp(issuer.companyName)}</Text>
+            {addr && <Text style={s.issuerText}>{jp(addr)}</Text>}
             {issuer.phone && <Text style={s.issuerText}>TEL {issuer.phone}</Text>}
             {issuer.email && <Text style={s.issuerText}>{issuer.email}</Text>}
             {issuer.registrationNumber && <Text style={[s.issuerText, { marginTop: 2 }]}>登録番号 {issuer.registrationNumber}</Text>}
@@ -180,8 +194,8 @@ function EstimateDoc({ e, issuer, logo }: { e: Estimate; issuer: IssuerSnapshot;
             <View key={it.id ?? i} style={s.tr} wrap={false}>
               <Text style={[s.cell, s.center, { width: COL.no, color: "#64748b" }]}>{i + 1}</Text>
               <View style={[s.cell, { flex: 1 }]}>
-                <Text>{it.name}</Text>
-                {(it.spec || it.notes) && <Text style={{ fontSize: 7.5, color: "#475569" }}>{[it.spec, it.notes].filter(Boolean).join(" / ")}</Text>}
+                <Text>{jp(it.name)}</Text>
+                {(it.spec || it.notes) && <Text style={{ fontSize: 7.5, color: "#475569" }}>{jp([it.spec, it.notes].filter(Boolean).join(" / "))}</Text>}
               </View>
               <Text style={[s.cell, s.right_, { width: COL.qty }]}>{num(it.quantity)}</Text>
               <Text style={[s.cell, s.center, { width: COL.unit }]}>{it.unit ?? ""}</Text>
@@ -231,22 +245,16 @@ function EstimateDoc({ e, issuer, logo }: { e: Estimate; issuer: IssuerSnapshot;
         {e.notes && (
           <View style={s.box} wrap={false}>
             <Text style={s.boxTitle}>備考</Text>
-            <Text>{e.notes}</Text>
+            <Text>{jp(e.notes)}</Text>
           </View>
         )}
         {issuer.bankInfo && (
           <View style={s.box} wrap={false}>
             <Text style={s.boxTitle}>お振込先</Text>
-            <Text>{issuer.bankInfo}</Text>
+            <Text>{jp(issuer.bankInfo)}</Text>
           </View>
         )}
 
-        <View fixed style={s.footer}>
-          <Text>
-            No. {e.estimateNumber}　{issuer.companyName}
-          </Text>
-          <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
-        </View>
       </Page>
     </Document>
   );

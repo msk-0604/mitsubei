@@ -569,7 +569,7 @@ export function EstimateEditor({ init }: { init: EditorInitial }) {
       {/* ───── 保存バー ───── */}
       <div className="fixed inset-x-0 bottom-[calc(3.6rem+env(safe-area-inset-bottom))] z-30 border-t border-slate-200 bg-white/95 backdrop-blur md:bottom-0 print:hidden">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5 sm:px-6">
-          <div className="mr-auto min-w-0">
+          <div className="mr-auto shrink-0 whitespace-nowrap">
             <p className="text-xs text-slate-500">税込合計</p>
             <p className="text-lg font-bold tabular-nums text-slate-800">{yen(totals.total)}</p>
           </div>
@@ -582,11 +582,13 @@ export function EstimateEditor({ init }: { init: EditorInitial }) {
           )}
           <Button variant="secondary" onClick={() => save("view")} loading={saving} className={dirty || !estimateId ? "" : "hidden"}>
             <Eye className="size-4" aria-hidden />
-            保存してプレビュー
+            <span className="sm:hidden">確認</span>
+            <span className="hidden sm:inline">保存してプレビュー</span>
           </Button>
           <Button onClick={() => save()} loading={saving}>
             <Save className="size-4" aria-hidden />
-            下書き保存
+            <span className="sm:hidden">保存</span>
+            <span className="hidden sm:inline">下書き保存</span>
           </Button>
         </div>
       </div>

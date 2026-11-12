@@ -50,8 +50,13 @@ export function Button({
   );
 }
 
+/** 幅の指定（w-24 など）が渡されたときは既定の w-full を付けない（クラスの競合を避ける） */
+function widthClass(className: string) {
+  return /(^|\s)w-/.test(className) ? "" : "w-full";
+}
+
 const controlBase =
-  "w-full rounded-lg border bg-white px-3 text-[16px] sm:text-[15px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50 disabled:text-slate-500";
+  "rounded-lg border bg-white px-3 text-[16px] sm:text-[15px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50 disabled:text-slate-500";
 
 function controlBorder(error?: string) {
   return error ? "border-red-400" : "border-slate-300";
@@ -95,7 +100,7 @@ export function Field({
 export function TextInput({ error, className = "", ...props }: InputHTMLAttributes<HTMLInputElement> & { error?: string }) {
   return (
     <input
-      className={`${controlBase} ${controlBorder(error)} h-11 ${className}`}
+      className={`${controlBase} ${widthClass(className)} ${controlBorder(error)} h-11 ${className}`}
       aria-invalid={error ? true : undefined}
       aria-describedby={error && props.id ? `${props.id}-error` : undefined}
       {...props}
@@ -106,7 +111,7 @@ export function TextInput({ error, className = "", ...props }: InputHTMLAttribut
 export function TextArea({ error, className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { error?: string }) {
   return (
     <textarea
-      className={`${controlBase} ${controlBorder(error)} min-h-24 py-2.5 leading-relaxed ${className}`}
+      className={`${controlBase} w-full ${controlBorder(error)} min-h-24 py-2.5 leading-relaxed ${className}`}
       aria-invalid={error ? true : undefined}
       aria-describedby={error && props.id ? `${props.id}-error` : undefined}
       {...props}
@@ -116,7 +121,7 @@ export function TextArea({ error, className = "", ...props }: TextareaHTMLAttrib
 
 export function Select({ error, className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { error?: string }) {
   return (
-    <select className={`${controlBase} ${controlBorder(error)} h-11 ${className}`} aria-invalid={error ? true : undefined} {...props}>
+    <select className={`${controlBase} ${widthClass(className)} ${controlBorder(error)} h-11 ${className}`} aria-invalid={error ? true : undefined} {...props}>
       {children}
     </select>
   );

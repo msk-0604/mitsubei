@@ -10,9 +10,9 @@ import { yen } from "@/lib/format";
 import { EstimateTable } from "@/components/estimate-list";
 import { Alert, Card, CardHeader, EmptyState, Spinner, TextInput, buttonClass } from "@/components/ui";
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ label, value, sub, className = "" }: { label: string; value: string; sub?: string; className?: string }) {
   return (
-    <Card className="p-4 sm:p-5">
+    <Card className={`p-4 sm:p-5 ${className}`}>
       <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-800 sm:text-[26px]">{value}</p>
       {sub && <p className="mt-0.5 text-xs tabular-nums text-slate-500">{sub}</p>}
@@ -56,9 +56,10 @@ export default function HomePage() {
 
       {error && <Alert>{error.message}</Alert>}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat label={`${monthLabel}の見積書作成件数`} value={data ? `${data.monthCount.toLocaleString()}件` : "—"} />
         <Stat
+          className="order-first col-span-2 sm:order-none sm:col-span-1"
           label={`${monthLabel}の見積金額合計（税込）`}
           value={data ? yen(data.monthTotal) : "—"}
           sub={data ? `税抜 ${yen(data.monthSubtotal)}` : undefined}

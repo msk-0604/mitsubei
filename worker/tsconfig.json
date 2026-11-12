@@ -3,13 +3,23 @@
     "target": "es2022",
     "module": "es2022",
     "moduleResolution": "bundler",
-    "lib": ["es2022"],
-    "types": ["./worker-configuration.d.ts"],
+    "lib": [
+      "es2022"
+    ],
+    "types": [
+      "./worker-configuration.d.ts"
+    ],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true
   },
-  "include": ["src", "test", "worker-configuration.d.ts", "../shared"]
+  "include": [
+    "src",
+    "test/*.test.ts",
+    "test/provided.d.ts",
+    "worker-configuration.d.ts",
+    "../shared"
+  ]
 }
