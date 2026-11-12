@@ -1,11 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "mitubei-api",
+  "name": "mitsubei",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  // https://mitubei-api.<サブドメイン>.workers.dev（Next.js サーバーだけが呼び出す）
+  // https://mitsubei.<サブドメイン>.workers.dev（Next.js サーバーだけが呼び出す）
   "workers_dev": true,
   // ブランチごとのプレビュー URL は使わない（本番データベースに接続されるため）
   "preview_urls": false,
