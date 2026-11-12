@@ -1,0 +1,4 @@
+# ローカル開発用。.dev.vars にコピーして値を変えてください（コミットしないこと）
+# 生成: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+INTERNAL_API_SECRET=change-me-to-a-random-string-32chars
+BETTER_AUTH_SECRET=change-me-to-another-random-string-32chars

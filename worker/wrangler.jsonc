@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mitubei-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // https://mitubei-api.<サブドメイン>.workers.dev（Next.js サーバーだけが呼び出す）
+  "workers_dev": true,
+  // ブランチごとのプレビュー URL は使わない（本番データベースに接続されるため）
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mitubei",
+      // Cloudflare で D1 を作成したら、表示された Database ID に置き換える
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // API 全体のレート制限（Workers Rate Limiting。ユーザーごと 60秒に 300 回まで）
+  "ratelimits": [
+    { "name": "API_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } }
+  ],
+  "vars": {
+    // 画面（Next.js）の公開 URL。Cookie の発行先と、CSRF 対策の Origin 検証に使う。カンマ区切りで複数可（先頭が正）
+    "APP_ORIGINS": "http://localhost:3000",
+    "SESSION_TTL_DAYS": "14"
+  }
+  // 秘密情報は `wrangler secret put <名前>`（本番）または .dev.vars（ローカル）で設定する：
+  //   INTERNAL_API_SECRET … Next.js サーバーとだけ共有する値
+  //   BETTER_AUTH_SECRET  … セッション Cookie の署名用
+}
