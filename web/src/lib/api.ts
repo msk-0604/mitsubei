@@ -72,6 +72,7 @@ export async function api<T>(
     const e = err?.error;
     if (res.status === 401 && (e?.code === "unauthenticated" || !e)) {
       // セッション切れ：画面状態（他社のデータを含むキャッシュ）を破棄してログイン画面へ
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- キャッシュを確実に破棄するため完全に読み直す
       if (!path.startsWith("/auth/")) window.location.href = "/login?expired=1";
     }
     throw new ApiError(
