@@ -121,7 +121,7 @@ mitsubei/
 | | `INTERNAL_API_SECRET` | Workers と共有する秘密値（32バイト以上のランダム文字列） |
 | `worker/.dev.vars`（本番は `wrangler secret put`） | `INTERNAL_API_SECRET` | 上と同じ値 |
 | | `BETTER_AUTH_SECRET` | セッション Cookie の署名用（32バイト以上のランダム文字列） |
-| `worker/wrangler.jsonc` の `vars` | `APP_ORIGINS` | 画面の公開 URL（例：`https://mitubei.example.com`）。Cookie の発行先と Origin の確認に使う |
+| `worker/wrangler.jsonc` の `vars` | `APP_ORIGINS` | 画面の公開 URL（現在は `https://mitsubei-web.vercel.app`）。Cookie の発行先と Origin の確認に使う。ローカルは `.dev.vars` で `http://localhost:3000` に上書き |
 | | `SESSION_TTL_DAYS` | セッションの有効日数（既定 14） |
 
 秘密値は次のコマンドで作れます。

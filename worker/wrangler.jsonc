@@ -14,7 +14,7 @@
       "binding": "DB",
       "database_name": "mitubei",
       // Cloudflare で D1 を作成したら、表示された Database ID に置き換える
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "3217a335-f964-4d03-8602-4d08c9104489",
       "migrations_dir": "migrations"
     }
   ],
@@ -24,7 +24,7 @@
   ],
   "vars": {
     // 画面（Next.js）の公開 URL。Cookie の発行先と、CSRF 対策の Origin 検証に使う。カンマ区切りで複数可（先頭が正）
-    "APP_ORIGINS": "http://localhost:3000",
+    "APP_ORIGINS": "https://mitsubei-web.vercel.app",
     "SESSION_TTL_DAYS": "14"
   }
   // 秘密情報は `wrangler secret put <名前>`（本番）または .dev.vars（ローカル）で設定する：

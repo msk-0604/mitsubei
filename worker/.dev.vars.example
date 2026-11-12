@@ -2,3 +2,5 @@
 # 生成: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 INTERNAL_API_SECRET=change-me-to-a-random-string-32chars
 BETTER_AUTH_SECRET=change-me-to-another-random-string-32chars
+# ローカルでは画面の URL を localhost にする（wrangler.jsonc の本番の値を上書き）
+APP_ORIGINS=http://localhost:3000
