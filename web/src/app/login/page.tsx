@@ -30,8 +30,10 @@ function LoginForm() {
     } catch (err) {
       setBusy(false);
       if (err instanceof ApiError && err.status === 429) setError("ログイン試行回数が多すぎます。15分ほど待ってから再度お試しください");
-      else if (err instanceof ApiError && err.status === 0) setError(err.message);
-      else setError("メールアドレスまたはパスワードが正しくありません");
+      else if (err instanceof ApiError && (err.status === 401 || err.status === 400)) setError("メールアドレスまたはパスワードが正しくありません");
+      // 接続や設定の問題は、原因がわかるようにそのまま表示する（パスワードの誤りとは区別する）
+      else if (err instanceof ApiError) setError(`${err.message}（エラー ${err.status} / ${err.code}）`);
+      else setError("ログインできませんでした。時間をおいて再度お試しください");
     }
   }
 
